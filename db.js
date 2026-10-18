@@ -62,15 +62,33 @@ const createDefaultAdmin = async () => {
 };
 
 
+let connectionPromise = null;
+
 async function connectDB() {
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log("✅ connect to MongoDB done");
-    await createDefaultAdmin();
-  } catch (err) {
-    console.error("❌ connection error:", err.message);
-    process.exit(1);
+  if (!MONGO_URI) {
+    throw new Error('MONGODB_URI is not configured');
   }
+
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  if (!connectionPromise) {
+    connectionPromise = mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 10000
+    })
+    .then(async () => {
+      console.log('MongoDB connected successfully');
+      await createDefaultAdmin();
+    })
+    .catch((err) => {
+      connectionPromise = null;
+      console.error('MongoDB connection failed:', err.message);
+      throw err;
+    });
+  }
+
+  await connectionPromise;
 }
 
 
