@@ -26,6 +26,21 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'stationery-hub-backend',
+    endpoints: {
+      health: '/health',
+      readiness: '/ready',
+      products: '/product',
+      blog: '/blog',
+      admin: '/admin',
+      orders: '/api'
+    }
+  });
+});
+
 // فحص أن تطبيق Express يعمل دون الاتصال بقاعدة البيانات
 app.get('/health', (req, res) => {
   res.status(200).json({
