@@ -1,19 +1,22 @@
 const {product}=require('../models/productModel')
-const path = require("path");
-const fs = require("fs");
+const { uploadImage, removeImage } = require('../lib/imageStorage');
 
 exports.addProduct= async (req, res) => {
+  let image;
   try {
     const { name,description,price,category } = req.body;
-    const image = req.file ? req.file.filename : null;
-
     if (!name || !description || !price || !category) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
+    image = req.file ? await uploadImage(req.file, 'products') : null;
     const result = await product.add( name,description,price,category,image);
+    image = null;
     res.status(201).json({ message: "product added  " });
   } catch (err) {
+    if (image) {
+      await removeImage(image);
+    }
     console.error("Error adding product  :", err);
     res.status(500).json({ error: "Error adding product   " });
   }
@@ -29,23 +32,32 @@ exports.getProduct = async (req, res) => {
   }
 };
 exports.updateProduct = async (req, res) => {
+  let uploadedImage;
   try {
     const { id } = req.params;
     const updatedData = req.body;
-    const image = await product.getById(id)
+    const existingProduct = await product.getById(id);
+    if (!existingProduct) {
+      return res.status(404).json({ error: "product not found" });
+    }
+
     if (req.file) {
-      updatedData.image = req.file.filename; 
+      uploadedImage = await uploadImage(req.file, 'products');
+      updatedData.image = uploadedImage;
     }
 
     const updatedProduct = await product.update(id, updatedData);
     if (!updatedProduct) {
+      await removeImage(uploadedImage);
       return res.status(404).json({ error: "product not found" });
     }
-    if(updatedData.image){
-      deleteFiles(image, "../uploads");
+    uploadedImage = null;
+    if (req.file && existingProduct.image) {
+      await removeImage(existingProduct.image);
     }
     res.status(200).json({ message: "The product has been updated " });
   } catch (err) {
+    await removeImage(uploadedImage);
     console.error(" Update error :", err);
     res.status(500).json({ error: "Update error" });
   }
@@ -55,27 +67,20 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const image= await product.getById(id)
+    const existingProduct = await product.getById(id);
+    if (!existingProduct) {
+      return res.status(404).json({ error: "product not found " });
+    }
+
     const deletedProduct = await product.remove(id);
 
     if (!deletedProduct) {
       return res.status(404).json({ error: "product not found " });
     }
-   deleteFiles(image, "../uploads");
+    await removeImage(existingProduct.image);
     res.status(200).json({ message: "product deleted  " });
   } catch (err) {
     console.error(" Deletion error :", err);
     res.status(500).json({ error: "Deletion error" });
   }
 };
-const deleteFiles = (file, directory) => {
-  const filePath = path.join(__dirname, directory, file);
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error(`Failed to delete file: ${err.message}`);
-    } else {
-      console.log(`File :${file} deleted successfully`);
-    }
-  });
-}
-

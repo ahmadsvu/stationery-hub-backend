@@ -45,7 +45,7 @@ const product={
   getById: async(id)=>{
         try{
             const productinfo= await Product.findById(id)
-            return productinfo.image
+            return productinfo
 
         }
         catch (err){

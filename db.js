@@ -73,22 +73,28 @@ async function connectDB() {
     return;
   }
 
-  if (!connectionPromise) {
+  try {
+    if (mongoose.connection.readyState === 2) {
+      await mongoose.connection.asPromise();
+      if (connectionPromise) {
+        await connectionPromise;
+      }
+      return;
+    }
+
     connectionPromise = mongoose.connect(MONGO_URI, {
       serverSelectionTimeoutMS: 10000
-    })
-    .then(async () => {
+    }).then(async () => {
       console.log('MongoDB connected successfully');
       await createDefaultAdmin();
-    })
-    .catch((err) => {
-      connectionPromise = null;
-      console.error('MongoDB connection failed:', err.message);
-      throw err;
     });
-  }
 
-  await connectionPromise;
+    await connectionPromise;
+  } catch (err) {
+    connectionPromise = null;
+    console.error('MongoDB connection failed:', err.message);
+    throw err;
+  }
 }
 
 
@@ -99,4 +105,3 @@ module.exports = {
   Order,
   Admin
 };
-

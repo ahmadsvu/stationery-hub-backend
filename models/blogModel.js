@@ -44,7 +44,7 @@ update: async (id, updatedData) => {
   getById: async (id) => {
     try {
       const post = await Post.findById(id)
-      return post.image;
+      return post;
     } catch (err) {
       console.error(" Error fetching post :", err);
       throw err;

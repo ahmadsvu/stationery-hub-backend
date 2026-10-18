@@ -1,5 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
+
 const connectDB = require('./db');
 
 const blogRoutes = require('./routes/blogRoutes');
@@ -7,15 +10,15 @@ const productRoutes = require('./routes/productRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 
-require('dotenv').config();
-
 const app = express();
 
+const allowedOrigins = [
+  (process.env.FRONTEND_ORIGIN || 'https://stationery-hub-frontend.vercel.app').replace(/\/$/, ''),
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: [
-    'https://stationery-hub-frontend.vercel.app',
-    'http://localhost:5173'
-  ],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -31,13 +34,30 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/ready', async (req, res) => {
+  try {
+    await connectDB.connectDB();
+    res.status(200).json({ status: 'ready' });
+  } catch (err) {
+    console.error('Database readiness check failed:', err.message);
+    res.status(503).json({ status: 'not_ready', error: 'Database unavailable' });
+  }
+});
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // التأكد من جاهزية قاعدة البيانات قبل تنفيذ المسارات
 app.use(async (req, res, next) => {
   try {
     await connectDB.connectDB();
     next();
   } catch (err) {
-    console.error('Database initialization failed:', err.message);
+    console.error('Database initialization failed:', {
+      name: err.name,
+      message: err.message,
+      code: err.code,
+      codeName: err.codeName
+    });
 
     res.status(503).json({
       error: 'Database unavailable'
@@ -45,7 +65,6 @@ app.use(async (req, res, next) => {
   }
 });
 
-app.use('/uploads', express.static('uploads'));
 app.use('/blog', blogRoutes);
 app.use('/product', productRoutes);
 app.use('/admin', adminRoutes);
@@ -59,8 +78,11 @@ app.use((err, req, res, next) => {
     return next(err);
   }
 
-  res.status(500).json({
-    error: 'Internal server error'
+  const status = err.code === 'LIMIT_FILE_SIZE'
+    ? 413
+    : Number.isInteger(err.status) && err.status >= 400 ? err.status : 500;
+  res.status(status).json({
+    error: status === 413 ? 'Uploaded file exceeds the 4 MB limit' : 'Internal server error'
   });
 });
 
@@ -70,6 +92,7 @@ if (require.main === module) {
 
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
+    console.log();
   });
 }
 
